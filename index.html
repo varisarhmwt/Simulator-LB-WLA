@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulator Line Balance & Workload Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+
+        .control-group input, .control-group select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .process-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            transition: all 0.3s;
+            border: 1px solid #e0e0e0;
+        }
+
+        .process-bar:hover {
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+
+        .process-name {
+            width: 200px;
+            font-size: 12px;
+            font-weight: 500;
+            padding-right: 10px;
+        }
+
+        .bar {
+            height: 25px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            flex-grow: 1;
+            margin: 0 10px;
+            transition: all 0.3s;
+        }
+
+        .time-value {
+            width: 100px;
+            text-align: right;
+            font-weight: 600;
+            font-size: 12px;
+            padding-left: 10px;
+        }
+
+        .bottleneck {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            animation: pulse 2s infinite;
+        }
+
+        .normal {
+            background: linear-gradient(45deg, #4ecdc4, #44bd32);
+        }
+
+        .efficient {
+            background: linear-gradient(45deg, #45b7d1, #96ceb4);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #667eea;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .recommendations {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .recommendation-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #f39c12;
+            background: #fef9e7;
+            border-radius: 8px;
+        }
+
+        .recommendation-item.critical {
+            border-left-color: #e74c3c;
+            background: #fdedec;
+        }
+
+        .recommendation-item.improvement {
+            border-left-color: #27ae60;
+            background: #eafaf1;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-table th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Time Input Panel Styles */
+        .time-inputs {
+            background: white;
+            margin: 20px 0;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border: 2px solid #667eea;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 13px 13px 0 0;
+        }
+
+        .panel-header h3 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .time-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+            transform: translateY(-1px);
+        }
+
+        .time-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .time-input-group {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .time-input-group:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .time-input-group.bottleneck {
+            border-color: #e74c3c;
+            background: #fdf2f2;
+        }
+
+        .time-input-group.efficient {
+            border-color: #27ae60;
+            background: #f0f9f0;
+        }
+
+        .time-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .process-type {
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: normal;
+        }
+
+        .process-type.machine {
+            background: #3498db;
+            color: white;
+        }
+
+        .process-type.manual {
+            background: #f39c12;
+            color: white;
+        }
+
+        .time-input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .time-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .time-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 11px;
+            color: #7f8c8d;
+        }
+
+        .panel-footer {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 0 0 13px 13px;
+            text-align: center;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Process Manager Styles */
+        .process-manager-grid {
+            padding: 20px;
+        }
+
+        .process-item {
+            display: grid;
+            grid-template-columns: 50px 2fr 100px 100px 80px 100px 60px;
+            gap: 10px;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            transition: all 0.3s;
+        }
+
+        .process-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .process-item.new {
+            border-color: #27ae60;
+            background: #f0f9f0;
+        }
+
+        .process-item.modified {
+            border-color: #f39c12;
+            background: #fef9e7;
+        }
+
+        .process-number {
+            font-weight: bold;
+            text-align: center;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .process-name-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .process-time-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: 600;
+            width: 80px;
+        }
+
+        .process-operators-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+            width: 60px;
+        }
+
+        .process-type-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
+        }
+
+        .process-manager-header {
+            display: grid;
+            grid-template-columns: 50px 2fr 100px 100px 80px 100px 60px;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .import-export-area {
+            margin-top: 20px;
+            padding: 15px;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            text-align: center;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏭 Simulator Line Balance & Workload Analysis</h1>
+            <p>Proses Produksi Air Minum 5 Gallon</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Target Produksi (galon/hari):</label>
+                <input type="number" id="targetProduction" value="1000" min="100" max="5000">
+            </div>
+            <div class="control-group">
+                <label>Jam Kerja per Hari:</label>
+                <input type="number" id="workingHours" value="8" min="4" max="24">
+            </div>
+            <div class="control-group">
+                <label>Jumlah Operator:</label>
+                <input type="number" id="operators" value="10" min="5" max="20">
+            </div>
+            <div class="control-group">
+                <label>Efisiensi Line (%):</label>
+                <input type="number" id="efficiency" value="85" min="50" max="100">
+            </div>
+            <div class="control-group">
+                <button class="btn" onclick="toggleProcessManager()">🔧 Kelola Proses</button>
+            </div>
+            <div class="control-group">
+                <button class="btn" onclick="toggleTimeInputs()">⚙️ Atur Waktu Proses</button>
+            </div>
+            <div class="control-group">
+                <button class="btn" onclick="runSimulation()">🚀 Jalankan Simulasi</button>
+            </div>
+        </div>
+
+        <!-- Process Manager Panel -->
+        <div id="processManagerPanel" class="time-inputs" style="display: none;">
+            <div class="panel-header">
+                <h3>🔧 Manajemen Proses Produksi</h3>
+                <div class="time-controls">
+                    <button class="btn-small" onclick="addNewProcess()">➕ Tambah Proses</button>
+                    <button class="btn-small" onclick="resetToDefault()">🔄 Reset Default</button>
+                    <button class="btn-small" onclick="exportProcesses()">📤 Export</button>
+                    <button class="btn-small" onclick="importProcesses()">📥 Import</button>
+                </div>
+            </div>
+            <div class="process-manager-grid" id="processManagerGrid">
+                <!-- Process management akan diisi oleh JavaScript -->
+            </div>
+            <div class="panel-footer">
+                <button class="btn" onclick="saveProcessChanges()">✅ Simpan Perubahan</button>
+                <button class="btn-secondary" onclick="toggleProcessManager()">❌ Tutup</button>
+            </div>
+        </div>
+
+        <!-- Time Input Panel -->
+        <div id="timeInputPanel" class="time-inputs" style="display: none;">
+            <div class="panel-header">
+                <h3>⏱️ Pengaturan Waktu Proses (detik)</h3>
+                <div class="time-controls">
+                    <button class="btn-small" onclick="loadDefaultTimes()">📋 Default</button>
+                    <button class="btn-small" onclick="loadExampleTimes()">📊 Contoh Data</button>
+                    <button class="btn-small" onclick="clearAllTimes()">🗑️ Reset</button>
+                </div>
+            </div>
+            <div class="time-grid" id="timeInputGrid">
+                <!-- Time inputs akan diisi oleh JavaScript -->
+            </div>
+            <div class="panel-footer">
+                <button class="btn" onclick="applyCustomTimes()">✅ Terapkan Waktu</button>
+                <button class="btn-secondary" onclick="toggleTimeInputs()">❌ Tutup</button>
+            </div>
+        </div>
+
+        <div class="metrics" id="metrics">
+            <!-- Metrics akan diisi oleh JavaScript -->
+        </div>
+
+        <div class="results">
+            <div class="chart-container">
+                <div class="chart-title">📊 Waktu Proses per Stasiun</div>
+                <div id="processChart"></div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">⚖️ Workload Balance</div>
+                <div id="workloadChart"></div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="dataTable">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Proses</th>
+                        <th>Waktu (detik)</th>
+                        <th>Kapasitas/Jam</th>
+                        <th>Operator</th>
+                        <th>Utilitas (%)</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data akan diisi oleh JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="recommendations">
+            <h3>💡 Rekomendasi Perbaikan</h3>
+            <div id="recommendations">
+                <!-- Rekomendasi akan diisi oleh JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data proses produksi
+        const processes = [
+            { name: "Penerimaan galon kosong", baseTime: 15, operators: 1, type: "manual" },
+            { name: "Relabel", baseTime: 25, operators: 1, type: "manual" },
+            { name: "Visual galon kosong", baseTime: 20, operators: 1, type: "manual" },
+            { name: "Leak tester mesin", baseTime: 30, operators: 1, type: "machine" },
+            { name: "Pencucian galon (Washer)", baseTime: 45, operators: 1, type: "machine" },
+            { name: "Pengisian air (Filling)", baseTime: 40, operators: 1, type: "machine" },
+            { name: "Coding mesin", baseTime: 12, operators: 1, type: "machine" },
+            { name: "Visual galon isi", baseTime: 22, operators: 1, type: "manual" },
+            { name: "Manual packing", baseTime: 35, operators: 2, type: "manual" },
+            { name: "Forklift warehouse", baseTime: 18, operators: 1, type: "manual" }
+        ];
+
+        let simulationData = [];
+        let customTimes = {};
+        let processesBackup = [];
+
+        // Initialize backup
+        function initializeBackup() {
+            processesBackup = JSON.parse(JSON.stringify(processes));
+        }
+
+        function toggleProcessManager() {
+            const panel = document.getElementById('processManagerPanel');
+            if (panel.style.display === 'none') {
+                createProcessManager();
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function createProcessManager() {
+            const grid = document.getElementById('processManagerGrid');
+            
+            let managerHTML = `
+                <div class="process-manager-header">
+                    <div>#</div>
+                    <div>Nama Proses</div>
+                    <div>Waktu (detik)</div>
+                    <div>Operator</div>
+                    <div>Tipe</div>
+                    <div>Kapasitas/jam</div>
+                    <div>Aksi</div>
+                </div>
+            `;
+            
+            processes.forEach((process, index) => {
+                const capacity = Math.round(3600 / process.baseTime);
+                managerHTML += `
+                    <div class="process-item" id="process_${index}">
+                        <div class="process-number">${index + 1}</div>
+                        <input type="text" class="process-name-input" value="${process.name}" 
+                               onchange="updateProcess(${index}, 'name', this.value)">
+                        <input type="number" class="process-time-input" value="${process.baseTime}" 
+                               min="5" max="300" onchange="updateProcess(${index}, 'baseTime', this.value)">
+                        <input type="number" class="process-operators-input" value="${process.operators}" 
+                               min="1" max="5" onchange="updateProcess(${index}, 'operators', this.value)">
+                        <select class="process-type-select" onchange="updateProcess(${index}, 'type', this.value)">
+                            <option value="manual" ${process.type === 'manual' ? 'selected' : ''}>👤 Manual</option>
+                            <option value="machine" ${process.type === 'machine' ? 'selected' : ''}>🤖 Mesin</option>
+                        </select>
+                        <div style="text-align: center; font-weight: 600; color: #667eea;" id="capacity_${index}">
+                            ${capacity}
+                        </div>
+                        <button class="delete-btn" onclick="deleteProcess(${index})" title="Hapus Proses">
+                            🗑️
+                        </button>
+                    </div>
+                `;
+            });
+            
+            grid.innerHTML = managerHTML;
+        }
+
+        function updateProcess(index, field, value) {
+            if (field === 'baseTime') {
+                value = parseFloat(value);
+                if (value >= 5 && value <= 300) {
+                    processes[index][field] = value;
+                    // Update capacity display
+                    const capacity = Math.round(3600 / value);
+                    document.getElementById(`capacity_${index}`).textContent = capacity;
+                }
+            } else if (field === 'operators') {
+                value = parseInt(value);
+                if (value >= 1 && value <= 5) {
+                    processes[index][field] = value;
+                }
+            } else {
+                processes[index][field] = value;
+            }
+            
+            // Mark as modified
+            const processItem = document.getElementById(`process_${index}`);
+            processItem.classList.add('modified');
+        }
+
+        function addNewProcess() {
+            const newIndex = processes.length;
+            const newProcess = {
+                name: `Proses Baru ${newIndex + 1}`,
+                baseTime: 30,
+                operators: 1,
+                type: 'manual'
+            };
+            
+            processes.push(newProcess);
+            
+            // Recreate the manager to include new process
+            createProcessManager();
+            
+            // Mark new process
+            const newProcessItem = document.getElementById(`process_${newIndex}`);
+            if (newProcessItem) {
+                newProcessItem.classList.add('new');
+            }
+            
+            showNotification('➕ Proses baru ditambahkan', 'success');
+        }
+
+        function deleteProcess(index) {
+            if (processes.length <= 1) {
+                showNotification('⚠️ Minimal harus ada 1 proses', 'warning');
+                return;
+            }
+            
+            if (confirm(`Yakin ingin menghapus "${processes[index].name}"?`)) {
+                processes.splice(index, 1);
+                // Clear custom times for this process
+                delete customTimes[index];
+                // Rebuild custom times object with new indices
+                const newCustomTimes = {};
+                Object.keys(customTimes).forEach(key => {
+                    const keyIndex = parseInt(key);
+                    if (keyIndex > index) {
+                        newCustomTimes[keyIndex - 1] = customTimes[key];
+                    } else if (keyIndex < index) {
+                        newCustomTimes[keyIndex] = customTimes[key];
+                    }
+                });
+                customTimes = newCustomTimes;
+                
+                createProcessManager();
+                showNotification('🗑️ Proses berhasil dihapus', 'success');
+            }
+        }
+
+        function resetToDefault() {
+            if (confirm('Yakin ingin reset ke proses default? Semua perubahan akan hilang.')) {
+                processes.length = 0;
+                processes.push(...JSON.parse(JSON.stringify(processesBackup)));
+                customTimes = {};
+                createProcessManager();
+                showNotification('🔄 Reset ke proses default', 'info');
+            }
+        }
+
+        function saveProcessChanges() {
+            // Validate all processes
+            let isValid = true;
+            processes.forEach((process, index) => {
+                if (!process.name.trim() || process.baseTime < 5 || process.baseTime > 300 || process.operators < 1) {
+                    isValid = false;
+                }
+            });
+            
+            if (!isValid) {
+                showNotification('⚠️ Periksa data proses. Pastikan semua field terisi dengan benar.', 'warning');
+                return;
+            }
+            
+            // Clear modified classes
+            document.querySelectorAll('.process-item').forEach(item => {
+                item.classList.remove('modified', 'new');
+            });
+            
+            toggleProcessManager();
+            showNotification('✅ Perubahan proses berhasil disimpan!', 'success');
+        }
+
+        function exportProcesses() {
+            const dataStr = JSON.stringify({
+                processes: processes,
+                customTimes: customTimes,
+                exportDate: new Date().toISOString()
+            }, null, 2);
+            
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `line_balance_processes_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('📤 Data proses berhasil diekspor', 'success');
+        }
+
+        function importProcesses() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (data.processes && Array.isArray(data.processes)) {
+                                processes.length = 0;
+                                processes.push(...data.processes);
+                                if (data.customTimes) {
+                                    customTimes = data.customTimes;
+                                }
+                                createProcessManager();
+                                showNotification('📥 Data proses berhasil diimpor', 'success');
+                            } else {
+                                showNotification('⚠️ Format file tidak valid', 'warning');
+                            }
+                        } catch (error) {
+                            showNotification('❌ Error membaca file', 'warning');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        function toggleTimeInputs() {
+            const panel = document.getElementById('timeInputPanel');
+            if (panel.style.display === 'none') {
+                createTimeInputs();
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function createTimeInputs() {
+            const grid = document.getElementById('timeInputGrid');
+            let gridHTML = '';
+            
+            processes.forEach((process, index) => {
+                const currentTime = customTimes[index] || process.baseTime;
+                const processClass = getProcessClass(currentTime, index);
+                
+                gridHTML += `
+                    <div class="time-input-group ${processClass}">
+                        <div class="time-label">
+                            <span>${index + 1}. ${process.name}</span>
+                            <span class="process-type ${process.type}">${process.type === 'machine' ? '🤖 Mesin' : '👤 Manual'}</span>
+                        </div>
+                        <input type="number" 
+                               class="time-input" 
+                               id="time_${index}" 
+                               value="${currentTime}" 
+                               min="5" 
+                               max="180"
+                               onchange="updateTimePreview(${index})"
+                               placeholder="detik">
+                        <div class="time-info">
+                            <span>Operator: ${process.operators}</span>
+                            <span>Kapasitas: <span id="capacity_${index}">${Math.round(3600/currentTime)}/jam</span></span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            grid.innerHTML = gridHTML;
+        }
+
+        function getProcessClass(time, index) {
+            const targetProduction = parseInt(document.getElementById('targetProduction').value) || 1000;
+            const workingHours = parseInt(document.getElementById('workingHours').value) || 8;
+            const taktTime = (workingHours * 3600) / targetProduction;
+            
+            if (time > taktTime * 1.1) return 'bottleneck';
+            if (time < taktTime * 0.8) return 'efficient';
+            return '';
+        }
+
+        function updateTimePreview(index) {
+            const timeInput = document.getElementById(`time_${index}`);
+            const capacitySpan = document.getElementById(`capacity_${index}`);
+            const time = parseFloat(timeInput.value) || 0;
+            
+            if (time > 0) {
+                const capacity = Math.round(3600 / time);
+                capacitySpan.textContent = `${capacity}/jam`;
+                customTimes[index] = time;
+                
+                // Update visual class
+                const group = timeInput.closest('.time-input-group');
+                group.className = `time-input-group ${getProcessClass(time, index)}`;
+            }
+        }
+
+        function loadDefaultTimes() {
+            processes.forEach((process, index) => {
+                const timeInput = document.getElementById(`time_${index}`);
+                if (timeInput) {
+                    timeInput.value = process.baseTime;
+                    updateTimePreview(index);
+                }
+            });
+        }
+
+        function loadExampleTimes() {
+            const exampleTimes = [18, 30, 25, 35, 50, 45, 15, 28, 40, 22]; // Contoh data yang berbeda
+            processes.forEach((process, index) => {
+                const timeInput = document.getElementById(`time_${index}`);
+                if (timeInput && exampleTimes[index]) {
+                    timeInput.value = exampleTimes[index];
+                    updateTimePreview(index);
+                }
+            });
+        }
+
+        function clearAllTimes() {
+            processes.forEach((process, index) => {
+                const timeInput = document.getElementById(`time_${index}`);
+                if (timeInput) {
+                    timeInput.value = '';
+                    customTimes[index] = process.baseTime;
+                    updateTimePreview(index);
+                }
+            });
+        }
+
+        function applyCustomTimes() {
+            // Validasi input
+            let allValid = true;
+            processes.forEach((process, index) => {
+                const timeInput = document.getElementById(`time_${index}`);
+                if (timeInput) {
+                    const value = parseFloat(timeInput.value);
+                    if (!value || value < 5 || value > 180) {
+                        allValid = false;
+                        timeInput.style.borderColor = '#e74c3c';
+                    } else {
+                        timeInput.style.borderColor = '#27ae60';
+                        customTimes[index] = value;
+                    }
+                }
+            });
+
+            if (!allValid) {
+                alert('⚠️ Pastikan semua waktu proses diisi dengan nilai 5-180 detik');
+                return;
+            }
+
+            // Update processes dengan custom times
+            processes.forEach((process, index) => {
+                if (customTimes[index]) {
+                    process.baseTime = customTimes[index];
+                }
+            });
+
+            // Tutup panel dan jalankan simulasi
+            toggleTimeInputs();
+            runSimulation();
+            
+            // Show success message
+            showNotification('✅ Waktu proses berhasil diterapkan!', 'success');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#27ae60' : '#3498db'};
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                font-weight: 600;
+                z-index: 1000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function runSimulation() {
+            const targetProduction = parseInt(document.getElementById('targetProduction').value);
+            const workingHours = parseInt(document.getElementById('workingHours').value);
+            const totalOperators = parseInt(document.getElementById('operators').value);
+            const efficiency = parseFloat(document.getElementById('efficiency').value) / 100;
+
+            // Hitung takt time
+            const taktTime = (workingHours * 3600) / targetProduction; // detik per unit
+
+            // Simulasi setiap proses dengan custom times jika ada
+            simulationData = processes.map((process, index) => {
+                const baseTime = customTimes[index] || process.baseTime;
+                const adjustedTime = baseTime / efficiency;
+                const capacity = 3600 / adjustedTime; // unit per jam
+                const dailyCapacity = capacity * workingHours;
+                const utilization = (targetProduction / dailyCapacity) * 100;
+                
+                let status = 'normal';
+                if (adjustedTime > taktTime * 1.1) {
+                    status = 'bottleneck';
+                } else if (adjustedTime < taktTime * 0.8) {
+                    status = 'efficient';
+                }
+
+                return {
+                    id: index + 1,
+                    name: process.name,
+                    baseTime: baseTime,
+                    adjustedTime: adjustedTime,
+                    operators: process.operators,
+                    capacity: capacity,
+                    dailyCapacity: dailyCapacity,
+                    utilization: utilization,
+                    status: status,
+                    type: process.type,
+                    taktTime: taktTime
+                };
+            });
+
+            updateMetrics(targetProduction, workingHours, totalOperators, taktTime);
+            updateCharts();
+            updateTable();
+            generateRecommendations();
+        }
+
+        function updateMetrics(targetProduction, workingHours, totalOperators, taktTime) {
+            const bottlenecks = simulationData.filter(p => p.status === 'bottleneck').length;
+            const maxCapacity = Math.min(...simulationData.map(p => p.dailyCapacity));
+            const lineEfficiency = (maxCapacity / targetProduction) * 100;
+            const totalCycleTime = simulationData.reduce((sum, p) => sum + p.adjustedTime, 0);
+
+            const metricsHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">${Math.round(taktTime)}</div>
+                    <div class="metric-label">Takt Time (detik)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${Math.round(maxCapacity)}</div>
+                    <div class="metric-label">Kapasitas Maks (galon/hari)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${Math.round(lineEfficiency)}%</div>
+                    <div class="metric-label">Efisiensi Line</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${bottlenecks}</div>
+                    <div class="metric-label">Bottleneck</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${Math.round(totalCycleTime)}</div>
+                    <div class="metric-label">Total Cycle Time (detik)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${totalOperators}</div>
+                    <div class="metric-label">Total Operator</div>
+                </div>
+            `;
+            document.getElementById('metrics').innerHTML = metricsHTML;
+        }
+
+        function updateCharts() {
+            // Chart waktu proses - Horizontal Bar Chart Style
+            const processData = simulationData.map((process, index) => ({
+                ...process,
+                originalIndex: index
+            })).sort((a, b) => b.adjustedTime - a.adjustedTime); // Sort descending untuk Pareto
+            
+            const maxTime = processData[0].adjustedTime;
+            const taktTime = simulationData[0].taktTime;
+            
+            let processChartHTML = `
+                <div style="padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; border: 1px solid #dee2e6;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <span style="font-weight: 700; color: #2c3e50; font-size: 18px;">📊 Grafik Batang Horizontal - Waktu Proses</span>
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <span style="font-size: 13px; color: #e74c3c; font-weight: bold; background: white; padding: 8px 15px; border-radius: 20px; border: 2px solid #e74c3c; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                🎯 Takt Time: ${Math.round(taktTime)}s
+                            </span>
+                            <div style="display: flex; gap: 15px; font-size: 12px;">
+                                <span style="display: flex; align-items: center; gap: 5px; background: white; padding: 5px 10px; border-radius: 15px;">
+                                    <div style="width: 15px; height: 15px; background: #e74c3c; border-radius: 3px;"></div>Bottleneck
+                                </span>
+                                <span style="display: flex; align-items: center; gap: 5px; background: white; padding: 5px 10px; border-radius: 15px;">
+                                    <div style="width: 15px; height: 15px; background: #27ae60; border-radius: 3px;"></div>Efisien
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+            `;
+            
+            processData.forEach((process, index) => {
+                const width = (process.adjustedTime / maxTime) * 100;
+                const taktWidth = (taktTime / maxTime) * 100;
+                const isBottleneck = process.adjustedTime > taktTime;
+                const barColor = isBottleneck ? '#e74c3c' : '#27ae60';
+                const gap = process.adjustedTime - taktTime;
+                
+                processChartHTML += `
+                    <div style="display: flex; align-items: center; margin-bottom: 20px; position: relative;">
+                        <!-- Process Label -->
+                        <div style="width: 200px; padding-right: 15px; text-align: right;">
+                            <div style="font-weight: 600; font-size: 13px; color: ${barColor}; line-height: 1.2;">
+                                ${process.originalIndex + 1}. ${process.name}
+                            </div>
+                            <div style="font-size: 10px; color: #7f8c8d; margin-top: 2px;">
+                                ${process.type === 'machine' ? '🤖 Mesin' : '👤 Manual'} • ${isBottleneck ? '⚠️' : '✅'}
+                            </div>
+                        </div>
+                        
+                        <!-- Bar Container -->
+                        <div style="flex: 1; position: relative; height: 35px; background: #f8f9fa; border-radius: 20px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                            <!-- Takt Time Reference Line -->
+                            <div style="position: absolute; left: ${taktWidth}%; top: 0; bottom: 0; width: 3px; background: #f39c12; z-index: 20; box-shadow: 0 0 6px rgba(243, 156, 18, 0.8);"></div>
+                            
+                            <!-- Main Bar -->
+                            <div style="height: 100%; width: ${width}%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}dd 100%); 
+                                        border-radius: 20px; position: relative; z-index: 10;
+                                        display: flex; align-items: center; justify-content: center;
+                                        transition: all 0.3s ease; cursor: pointer;
+                                        box-shadow: 0 3px 6px rgba(0,0,0,0.15);"
+                                 onmouseover="this.style.transform='scaleY(1.1)'; this.style.zIndex='25'"
+                                 onmouseout="this.style.transform='scaleY(1)'; this.style.zIndex='10'"
+                                 title="${process.name}: ${Math.round(process.adjustedTime)}s">
+                                <span style="color: white; font-weight: bold; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+                                    ${Math.round(process.adjustedTime)}s
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Value and Gap -->
+                        <div style="width: 120px; padding-left: 15px; text-align: left;">
+                            <div style="font-weight: bold; font-size: 14px; color: ${barColor};">
+                                ${Math.round(process.adjustedTime)}s
+                            </div>
+                            <div style="font-size: 10px; color: ${gap > 0 ? '#e74c3c' : '#27ae60'};">
+                                ${gap > 0 ? `+${Math.round(gap)}s` : gap < -5 ? `${Math.round(gap)}s` : 'OK'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            processChartHTML += `
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('processChart').innerHTML = processChartHTML;
+
+            // Chart workload - Horizontal Bar Chart Style
+            const workloadData = simulationData.map((process, index) => ({
+                ...process,
+                originalIndex: index
+            })).sort((a, b) => b.utilization - a.utilization); // Sort descending untuk Pareto
+            
+            const maxUtilization = Math.max(workloadData[0].utilization, 100); // Minimal 100% untuk skala
+            const targetUtilization = 85;
+            
+            let workloadChartHTML = `
+                <div style="padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 15px; border: 1px solid #dee2e6;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <span style="font-weight: 700; color: #2c3e50; font-size: 18px;">⚖️ Grafik Batang Horizontal - Workload Balance</span>
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <span style="font-size: 13px; color: #f39c12; font-weight: bold; background: white; padding: 8px 15px; border-radius: 20px; border: 2px solid #f39c12; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                🎯 Target: ${targetUtilization}%
+                            </span>
+                            <div style="display: flex; gap: 15px; font-size: 12px;">
+                                <span style="display: flex; align-items: center; gap: 5px; background: white; padding: 5px 10px; border-radius: 15px;">
+                                    <div style="width: 15px; height: 15px; background: #e74c3c; border-radius: 3px;"></div>Overload
+                                </span>
+                                <span style="display: flex; align-items: center; gap: 5px; background: white; padding: 5px 10px; border-radius: 15px;">
+                                    <div style="width: 15px; height: 15px; background: #27ae60; border-radius: 3px;"></div>Optimal
+                                </span>
+                                <span style="display: flex; align-items: center; gap: 5px; background: white; padding: 5px 10px; border-radius: 15px;">
+                                    <div style="width: 15px; height: 15px; background: #3498db; border-radius: 3px;"></div>Underload
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+            `;
+            
+            workloadData.forEach((process, index) => {
+                const width = (process.utilization / maxUtilization) * 100;
+                const targetWidth = (targetUtilization / maxUtilization) * 100;
+                const isOverloaded = process.utilization > 95;
+                const isUnderloaded = process.utilization < 70;
+                
+                let barColor, statusIcon, borderColor;
+                if (isOverloaded) {
+                    barColor = '#e74c3c';
+                    statusIcon = '🔴';
+                } else if (isUnderloaded) {
+                    barColor = '#3498db';
+                    statusIcon = '🔵';
+                } else {
+                    barColor = '#27ae60';
+                    statusIcon = '🟢';
+                }
+                
+                const utilizationGap = process.utilization - targetUtilization;
+                
+                workloadChartHTML += `
+                    <div style="display: flex; align-items: center; margin-bottom: 20px; position: relative;">
+                        <!-- Process Label -->
+                        <div style="width: 200px; padding-right: 15px; text-align: right;">
+                            <div style="font-weight: 600; font-size: 13px; color: ${barColor}; line-height: 1.2;">
+                                ${process.originalIndex + 1}. ${process.name}
+                            </div>
+                            <div style="font-size: 10px; color: #7f8c8d; margin-top: 2px;">
+                                ${process.operators}👤 • ${statusIcon}
+                            </div>
+                        </div>
+                        
+                        <!-- Bar Container -->
+                        <div style="flex: 1; position: relative; height: 35px; background: #f8f9fa; border-radius: 20px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                            <!-- Target Utilization Reference Line -->
+                            <div style="position: absolute; left: ${targetWidth}%; top: 0; bottom: 0; width: 3px; background: #f39c12; z-index: 20; box-shadow: 0 0 6px rgba(243, 156, 18, 0.8);"></div>
+                            
+                            <!-- Main Bar -->
+                            <div style="height: 100%; width: ${width}%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}dd 100%); 
+                                        border-radius: 20px; position: relative; z-index: 10;
+                                        display: flex; align-items: center; justify-content: center;
+                                        transition: all 0.3s ease; cursor: pointer;
+                                        box-shadow: 0 3px 6px rgba(0,0,0,0.15);"
+                                 onmouseover="this.style.transform='scaleY(1.1)'; this.style.zIndex='25'"
+                                 onmouseout="this.style.transform='scaleY(1)'; this.style.zIndex='10'"
+                                 title="${process.name}: ${Math.round(process.utilization)}% - ${process.operators} operator">
+                                <span style="color: white; font-weight: bold; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+                                    ${Math.round(process.utilization)}%
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Value and Gap -->
+                        <div style="width: 120px; padding-left: 15px; text-align: left;">
+                            <div style="font-weight: bold; font-size: 14px; color: ${barColor};">
+                                ${Math.round(process.utilization)}%
+                            </div>
+                            <div style="font-size: 10px; color: ${Math.abs(utilizationGap) > 10 ? (utilizationGap > 0 ? '#e74c3c' : '#3498db') : '#27ae60'};">
+                                ${Math.abs(utilizationGap) > 10 ? `${utilizationGap > 0 ? '+' : ''}${Math.round(utilizationGap)}%` : 'OK'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            workloadChartHTML += `
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('workloadChart').innerHTML = workloadChartHTML;
+        }
+
+        function updateTable() {
+            let tableHTML = '';
+            
+            simulationData.forEach(process => {
+                let statusBadge = '';
+                switch(process.status) {
+                    case 'bottleneck':
+                        statusBadge = '<span style="color: #e74c3c; font-weight: bold;">⚠️ Bottleneck</span>';
+                        break;
+                    case 'efficient':
+                        statusBadge = '<span style="color: #27ae60; font-weight: bold;">✅ Efisien</span>';
+                        break;
+                    default:
+                        statusBadge = '<span style="color: #3498db; font-weight: bold;">🔄 Normal</span>';
+                }
+                
+                tableHTML += `
+                    <tr>
+                        <td>${process.id}</td>
+                        <td style="text-align: left;">${process.name}</td>
+                        <td>${Math.round(process.adjustedTime)}</td>
+                        <td>${Math.round(process.capacity)}</td>
+                        <td>${process.operators}</td>
+                        <td>${Math.round(process.utilization)}%</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('tableBody').innerHTML = tableHTML;
+        }
+
+        function generateRecommendations() {
+            let recommendationsHTML = '';
+            
+            // Identifikasi bottleneck
+            const bottlenecks = simulationData.filter(p => p.status === 'bottleneck');
+            bottlenecks.forEach(bottleneck => {
+                recommendationsHTML += `
+                    <div class="recommendation-item critical">
+                        <strong>🚨 Bottleneck Critical:</strong> ${bottleneck.name} memiliki waktu proses ${Math.round(bottleneck.adjustedTime)} detik. 
+                        Pertimbangkan: tambah operator, upgrade mesin, atau paralel proses.
+                    </div>
+                `;
+            });
+
+            // Identifikasi underutilized
+            const underutilized = simulationData.filter(p => p.utilization < 70);
+            underutilized.forEach(process => {
+                recommendationsHTML += `
+                    <div class="recommendation-item improvement">
+                        <strong>💡 Optimisasi:</strong> ${process.name} hanya terpakai ${Math.round(process.utilization)}%. 
+                        Operator bisa dialokasikan ke proses lain atau menangani multiple unit.
+                    </div>
+                `;
+            });
+
+            // Rekomendasi umum
+            const totalOperators = simulationData.reduce((sum, p) => sum + p.operators, 0);
+            const availableOperators = parseInt(document.getElementById('operators').value);
+            
+            if (totalOperators > availableOperators) {
+                recommendationsHTML += `
+                    <div class="recommendation-item critical">
+                        <strong>⚠️ Kekurangan SDM:</strong> Dibutuhkan ${totalOperators} operator, tersedia ${availableOperators}. 
+                        Tambah ${totalOperators - availableOperators} operator atau cross-training untuk fleksibilitas.
+                    </div>
+                `;
+            }
+
+            // Rekomendasi line balancing
+            const maxTime = Math.max(...simulationData.map(p => p.adjustedTime));
+            const minTime = Math.min(...simulationData.map(p => p.adjustedTime));
+            const imbalance = ((maxTime - minTime) / maxTime) * 100;
+            
+            if (imbalance > 30) {
+                recommendationsHTML += `
+                    <div class="recommendation-item">
+                        <strong>⚖️ Line Balancing:</strong> Ketidakseimbangan waktu proses ${Math.round(imbalance)}%. 
+                        Redistributasi tugas atau standardisasi waktu kerja untuk meningkatkan flow.
+                    </div>
+                `;
+            }
+
+            if (recommendationsHTML === '') {
+                recommendationsHTML = `
+                    <div class="recommendation-item improvement">
+                        <strong>✅ Line Optimal:</strong> Proses produksi sudah cukup seimbang. 
+                        Fokus pada continuous improvement dan maintenance preventif.
+                    </div>
+                `;
+            }
+
+            document.getElementById('recommendations').innerHTML = recommendationsHTML;
+        }
+
+        // Jalankan simulasi awal
+        runSimulation();
+    </script>
+</body>
+</html>
